@@ -1,26 +1,40 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* X's dark theme. Dark-only by design — this app is a companion to a site that
+   is itself always dark for its owner, and a theme toggle would be one more
+   thing to build for an audience of one. */
+@theme {
+  --color-canvas: #000000;
+  --color-surface: #16181c;
+  --color-edge: #2f3336;
+  --color-fg: #e7e9ea;
+  --color-muted: #71767b;
+  --color-accent: #1d9bf0;
+  --color-accent-hover: #1a8cd8;
+  --color-danger: #f4212e;
+  --color-success: #00ba7c;
+  --color-pending: #ffd400;
+
+  /* X uses Chirp, which isn't licensable. The system stack is the honest
+     approximation and costs no webfont request. */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-canvas);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Native picker indicator is near-invisible on black otherwise. */
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.6;
+  cursor: pointer;
 }
