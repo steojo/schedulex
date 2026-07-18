@@ -19,6 +19,8 @@ export default function ComposeButton({ presetDate }: { presetDate?: string }) {
         // what the user meant. The route converts to UTC for PFM.
         scheduledAt: values.scheduledAt ? new Date(values.scheduledAt).toISOString() : null,
         communityId: values.communityId,
+        media: values.media,
+        quoteTweetId: values.quoteTweetId,
       }),
     });
 
@@ -44,7 +46,13 @@ export default function ComposeButton({ presetDate }: { presetDate?: string }) {
       {open && (
         <Dialog title="New post" onClose={() => setOpen(false)}>
           <PostForm
-            initial={{ caption: "", scheduledAt: presetDate ?? "", communityId: null }}
+            initial={{
+              caption: "",
+              scheduledAt: presetDate ?? "",
+              communityId: null,
+              media: [],
+              quoteTweetId: null,
+            }}
             submitLabel="Schedule"
             onSubmit={create}
           />

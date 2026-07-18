@@ -99,6 +99,7 @@ export default function CalendarGrid({
                       })}
                     </span>{" "}
                     {post.communityId && <span title="Community post">◆ </span>}
+                    {post.mediaUrls.length > 0 && <span title="Has media">▣ </span>}
                     {post.caption}
                   </button>
                 ))}
@@ -113,7 +114,7 @@ export default function CalendarGrid({
         <Legend className="bg-pending" label="Processing" />
         <Legend className="bg-success" label="Published" />
         <Legend className="bg-muted" label="Draft" />
-        <span className="ml-auto">◆ community post</span>
+        <span className="ml-auto">◆ community · ▣ media</span>
       </div>
 
       {selected && <PostDialog post={selected} onClose={() => setSelected(null)} />}

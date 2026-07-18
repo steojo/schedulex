@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 
-import { MAX_CAPTION } from "@/lib/validate";
+import MediaPicker from "./MediaPicker";
+import { MAX_CAPTION, parseTweetId } from "@/lib/validate";
 
 export const BUILD_IN_PUBLIC = "1493446837214187523";
 
@@ -10,12 +11,15 @@ export type PostFormValues = {
   caption: string;
   scheduledAt: string; // datetime-local value; "" means post now
   communityId: string | null;
+  media: string[];
+  quoteTweetId: string | null;
 };
 
 /**
- * Shared by compose and edit. `showCommunity` is off when editing — PFM's update
- * endpoint takes caption and scheduled_at, so a community can't be moved after
- * the fact without deleting and re-creating.
+ * Shared by compose and edit. `showCommunity` is off when editing: moving a
+ * published-to community after the fact is confusing, so it's fixed at creation
+ * — but the value is still carried through, since PFM's update replaces the
+ * post and would otherwise drop it.
  */
 export default function PostForm({
   initial,
@@ -46,23 +50,33 @@ export default function PostForm({
       ? initial.communityId
       : "",
   );
+  const [media, setMedia] = useState<string[]>(initial.media);
+  const [quote, setQuote] = useState(initial.quoteTweetId ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const over = caption.length > MAX_CAPTION;
+  const quoteId = parseTweetId(quote);
   const canSubmit =
-    !busy && !disabled && caption.trim().length > 0 && !over &&
+    !busy && !disabled && caption.trim().length > 0 && !over && quoteId !== false &&
     (community !== "custom" || customId.trim().length > 0);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (quoteId === false) return;
     setBusy(true);
     setError(null);
 
     const communityId =
       community === "none" ? null : community === "bip" ? BUILD_IN_PUBLIC : customId.trim();
 
-    const message = await onSubmit({ caption: caption.trim(), scheduledAt, communityId });
+    const message = await onSubmit({
+      caption: caption.trim(),
+      scheduledAt,
+      communityId,
+      media,
+      quoteTweetId: quoteId,
+    });
     if (message) {
       setError(message);
       setBusy(false);
@@ -81,7 +95,28 @@ export default function PostForm({
         className="w-full resize-none bg-transparent text-[19px] leading-6 outline-none placeholder:text-muted disabled:opacity-60"
       />
 
-      <div className="mt-2 flex items-center justify-between border-t border-edge pt-3">
+      <MediaPicker value={media} onChange={setMedia} disabled={disabled} />
+
+      <div className="mt-3">
+        <label className="text-sm text-muted">
+          Quote tweet
+          <input
+            value={quote}
+            onChange={(e) => setQuote(e.target.value)}
+            placeholder="Paste a tweet URL"
+            disabled={disabled}
+            className="mt-1 w-full rounded-md border border-edge bg-transparent px-3 py-1.5 text-sm text-fg outline-none placeholder:text-muted focus:border-accent disabled:opacity-60"
+          />
+        </label>
+        {quoteId === false && (
+          <p className="mt-1 text-xs text-danger">That doesn&apos;t look like a tweet URL</p>
+        )}
+        {quoteId && quote !== quoteId && (
+          <p className="mt-1 text-xs text-muted">Quoting tweet {quoteId}</p>
+        )}
+      </div>
+
+      <div className="mt-3 flex items-center justify-between border-t border-edge pt-3">
         <label className="text-sm text-muted">
           Schedule
           <input

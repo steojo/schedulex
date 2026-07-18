@@ -14,6 +14,8 @@ export type CalendarPost = {
   status: PostStatus;
   scheduledAt: string;
   communityId: string | null;
+  mediaUrls: string[];
+  quoteTweetId: string | null;
 };
 
 type PfmPost = {
@@ -22,7 +24,10 @@ type PfmPost = {
   status: PostStatus;
   scheduled_at: string | null;
   created_at: string;
-  platform_configurations?: { x?: { community_id?: string } };
+  media?: { url: string }[];
+  platform_configurations?: {
+    x?: { community_id?: string; quote_tweet_id?: string };
+  };
 };
 
 function apiKey(): string {
@@ -85,6 +90,10 @@ export function toCalendarPost(raw: PfmPost): CalendarPost {
     // Published posts have no scheduled_at; fall back so they still land on a day.
     scheduledAt: raw.scheduled_at ?? raw.created_at,
     communityId: raw.platform_configurations?.x?.community_id ?? null,
+    // Media and quote survive edits only because they're carried here — PFM's
+    // update replaces the post, so the edit dialog has to resend them.
+    mediaUrls: raw.media?.map((m) => m.url) ?? [],
+    quoteTweetId: raw.platform_configurations?.x?.quote_tweet_id ?? null,
   };
 }
 
@@ -115,38 +124,62 @@ export type PostInput = {
   caption: string;
   scheduledAt: string | null;
   communityId: string | null;
+  media: string[];
+  quoteTweetId: string | null;
 };
 
-export async function createPost(input: PostInput): Promise<CalendarPost> {
-  const raw = await pfm<PfmPost>("POST", "/social-posts", {
+/**
+ * Create and update take the same body — PFM's PUT replaces rather than
+ * patches — so it's built in one place. Anything omitted here is dropped from
+ * the post, which is why callers must always pass full state.
+ */
+function toPfmBody(input: PostInput) {
+  // Both X options live under the "x" key, even though the schema that defines
+  // them is named TwitterConfigurationDto.
+  const x = {
+    ...(input.communityId ? { community_id: input.communityId } : {}),
+    ...(input.quoteTweetId ? { quote_tweet_id: input.quoteTweetId } : {}),
+  };
+
+  return {
     caption: input.caption,
     social_accounts: [accountId()],
     // null or omitted means publish immediately.
     scheduled_at: input.scheduledAt,
-    // Nesting key is "x" even though the schema is named TwitterConfigurationDto.
-    ...(input.communityId
-      ? { platform_configurations: { x: { community_id: input.communityId } } }
-      : {}),
-  });
-  return toCalendarPost(raw);
+    media: input.media.map((url) => ({ url })),
+    ...(Object.keys(x).length > 0 ? { platform_configurations: { x } } : {}),
+  };
+}
+
+export async function createPost(input: PostInput): Promise<CalendarPost> {
+  return toCalendarPost(await pfm<PfmPost>("POST", "/social-posts", toPfmBody(input)));
 }
 
 /**
- * PFM's PUT takes the same body as create — it REPLACES the post rather than
- * patching it, and `social_accounts` is required. So callers must pass the full
- * intended state: sending only `caption` 400s, and omitting `communityId` would
- * quietly move a community post out of its community.
+ * Two-step upload. This step needs the API key, so it stays on the server; the
+ * returned `uploadUrl` is a short-lived signed storage URL the browser PUTs the
+ * file to directly, so files never pass through this app.
+ */
+export async function createUploadUrl(): Promise<{
+  mediaUrl: string;
+  uploadUrl: string;
+}> {
+  const res = await pfm<{ media_url: string; upload_url: string }>(
+    "POST",
+    "/media/create-upload-url",
+  );
+  return { mediaUrl: res.media_url, uploadUrl: res.upload_url };
+}
+
+/**
+ * PFM's PUT REPLACES the post rather than patching it, and `social_accounts` is
+ * required. Callers must pass full intended state: sending only `caption` 400s,
+ * and omitting media, community, or quote silently strips them from the post.
  */
 export async function updatePost(id: string, input: PostInput): Promise<CalendarPost> {
-  const raw = await pfm<PfmPost>("PUT", `/social-posts/${id}`, {
-    caption: input.caption,
-    social_accounts: [accountId()],
-    scheduled_at: input.scheduledAt,
-    ...(input.communityId
-      ? { platform_configurations: { x: { community_id: input.communityId } } }
-      : {}),
-  });
-  return toCalendarPost(raw);
+  return toCalendarPost(
+    await pfm<PfmPost>("PUT", `/social-posts/${id}`, toPfmBody(input)),
+  );
 }
 
 export async function deletePost(id: string): Promise<void> {

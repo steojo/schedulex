@@ -30,9 +30,11 @@ export default function PostDialog({
         scheduledAt: values.scheduledAt
           ? new Date(values.scheduledAt).toISOString()
           : null,
-        // PFM's update replaces the post, so the community has to be resent or
-        // the post silently leaves the community it was published to.
+        // PFM's update replaces the post, so anything not resent is stripped:
+        // the community it was published to, its media, its quoted tweet.
         communityId: post.communityId,
+        media: values.media,
+        quoteTweetId: values.quoteTweetId,
       }),
     });
 
@@ -65,6 +67,8 @@ export default function PostDialog({
           caption: post.caption,
           scheduledAt: toLocalInputValue(post.scheduledAt),
           communityId: post.communityId,
+          media: post.mediaUrls,
+          quoteTweetId: post.quoteTweetId,
         }}
         submitLabel="Save"
         showCommunity={false}

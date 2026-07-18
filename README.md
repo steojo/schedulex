@@ -8,6 +8,8 @@ Schedule posts to X and see them on a month calendar. Single user, self-hosted.
 
 - Month calendar of scheduled and published posts
 - Compose, schedule, reschedule, edit, and cancel
+- Images and video — up to 4 images or one video per post
+- Quote tweets — paste a tweet URL
 - Post to your followers or into an X Community
 - Password-protected, single user
 - Dark theme
@@ -51,9 +53,9 @@ settings.
 
 ## Limitations
 
-- Text posts only — no images or video
 - No threads
 - 280 characters
+- No alt text on images
 - Community posts are visible only in the community, not to your followers. Posting to both
   means creating two posts.
 - Reconnecting your X account in Post for Me changes the account id, so `X_SOCIAL_ACCOUNT_ID`
