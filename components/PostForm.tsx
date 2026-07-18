@@ -124,7 +124,15 @@ export default function PostForm({
             value={scheduledAt}
             onChange={(e) => setScheduledAt(e.target.value)}
             disabled={disabled}
-            className="ml-2 rounded-md border border-edge bg-transparent px-2 py-1 text-sm text-fg outline-none focus:border-accent disabled:opacity-60"
+            // The icon is a small target; let a click anywhere in the field open
+            // the picker. Not supported everywhere, and throws without a user
+            // gesture, so failure just falls back to normal typing.
+            onClick={(e) => {
+              try {
+                e.currentTarget.showPicker();
+              } catch {}
+            }}
+            className="ml-2 cursor-pointer rounded-md border border-edge bg-transparent px-2 py-1 text-sm text-fg outline-none focus:border-accent disabled:opacity-60"
           />
         </label>
         <span className={`text-sm tabular-nums ${over ? "text-danger" : "text-muted"}`}>
