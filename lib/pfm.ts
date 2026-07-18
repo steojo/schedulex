@@ -16,6 +16,11 @@ export type CalendarPost = {
   communityId: string | null;
   mediaUrls: string[];
   quoteTweetId: string | null;
+  /** Link to the live tweet, once published. */
+  tweetUrl: string | null;
+  /** PFM reported the publish attempt failed. */
+  failed: boolean;
+  errorMessage: string | null;
 };
 
 type PfmPost = {
@@ -82,8 +87,11 @@ async function pfm<T>(method: string, path: string, body?: unknown): Promise<T> 
  * So every post crossing to the browser goes through this whitelist. Never
  * spread the raw object, never add `social_accounts`, never return `...raw`.
  */
-export function toCalendarPost(raw: PfmPost): CalendarPost {
+export function toCalendarPost(raw: PfmPost, result?: PostOutcome): CalendarPost {
   return {
+    tweetUrl: result?.tweetUrl ?? null,
+    failed: result?.failed ?? false,
+    errorMessage: result?.errorMessage ?? null,
     id: raw.id,
     caption: raw.caption,
     status: raw.status,
@@ -99,6 +107,60 @@ export function toCalendarPost(raw: PfmPost): CalendarPost {
 
 type Paginated<T> = { data: T[]; meta: { total: number; next: string | null } };
 
+/** What a publish attempt produced. Derived from PFM's post-results endpoint. */
+export type PostOutcome = {
+  tweetUrl: string | null;
+  failed: boolean;
+  errorMessage: string | null;
+};
+
+type PfmResult = {
+  post_id: string;
+  success: boolean;
+  error?: unknown;
+  platform_data?: { url?: string };
+};
+
+/**
+ * PFM types `error` as a bare object with no schema, so squeeze a displayable
+ * string out of whatever turns up rather than passing the raw value on.
+ *
+ * The same endpoint returns a `details` field holding trimmed HTTP request and
+ * response logs. Sampled responses carried no credentials, but the field is
+ * unspecified and its contents may differ on failure, so it stays server-side.
+ */
+function errorMessage(error: unknown): string | null {
+  if (!error) return null;
+  if (typeof error === "string") return error;
+  if (typeof error === "object") {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string") return message;
+  }
+  return "Publishing failed";
+}
+
+async function listOutcomes(): Promise<Map<string, PostOutcome>> {
+  const LIMIT = 100;
+  const MAX = 1000;
+  const out = new Map<string, PostOutcome>();
+
+  for (let offset = 0; offset < MAX; offset += LIMIT) {
+    const page = await pfm<Paginated<PfmResult>>(
+      "GET",
+      `/social-post-results?limit=${LIMIT}&offset=${offset}`,
+    );
+    for (const r of page.data) {
+      out.set(r.post_id, {
+        tweetUrl: r.platform_data?.url ?? null,
+        failed: r.success === false,
+        errorMessage: r.success === false ? errorMessage(r.error) : null,
+      });
+    }
+    if (!page.meta.next || page.data.length < LIMIT) break;
+  }
+  return out;
+}
+
 /**
  * The list endpoint has no date-range filter — only offset/limit/platform/
  * status. So the calendar pages through everything and filters by month in
@@ -107,17 +169,25 @@ type Paginated<T> = { data: T[]; meta: { total: number; next: string | null } };
 export async function listPosts(): Promise<CalendarPost[]> {
   const LIMIT = 100;
   const MAX = 1000;
-  const out: CalendarPost[] = [];
+  const raws: PfmPost[] = [];
+
+  // Posts say what was intended, results say what actually happened. Separate
+  // endpoints, so start the results fetch now and join once posts are in.
+  // A results failure degrades to "no outcome known" rather than an empty
+  // calendar — the posts themselves are the more important half.
+  const outcomesPromise = listOutcomes().catch(() => new Map<string, PostOutcome>());
 
   for (let offset = 0; offset < MAX; offset += LIMIT) {
     const page = await pfm<Paginated<PfmPost>>(
       "GET",
       `/social-posts?limit=${LIMIT}&offset=${offset}`,
     );
-    out.push(...page.data.map(toCalendarPost));
+    raws.push(...page.data);
     if (!page.meta.next || page.data.length < LIMIT) break;
   }
-  return out;
+
+  const outcomes = await outcomesPromise;
+  return raws.map((raw) => toCalendarPost(raw, outcomes.get(raw.id)));
 }
 
 export type PostInput = {

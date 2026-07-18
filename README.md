@@ -10,6 +10,7 @@ Schedule posts to X and see them on a month calendar. Single user, self-hosted.
 - Compose, schedule, reschedule, edit, and cancel
 - Images and video — up to 4 images or one video per post
 - Quote tweets — paste a tweet URL
+- Publish status — links through to the live tweet, flags failures
 - Post to your followers or into an X Community
 - Password-protected, single user
 - Dark theme

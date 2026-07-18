@@ -105,7 +105,27 @@ export default function PostDialog({
         }
       />
 
-      {published && (
+      {post.failed && (
+        <div className="mt-3 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2">
+          <p className="text-sm font-bold text-danger">Failed to publish</p>
+          {post.errorMessage && (
+            <p className="mt-0.5 text-xs text-danger/80">{post.errorMessage}</p>
+          )}
+        </div>
+      )}
+
+      {post.tweetUrl && (
+        <a
+          href={post.tweetUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 inline-block text-sm font-bold text-accent hover:underline"
+        >
+          View on X ↗
+        </a>
+      )}
+
+      {published && !post.failed && (
         <p className="mt-3 text-xs text-muted">
           This post has already gone out, so it can&apos;t be edited here — only deleted.
         </p>

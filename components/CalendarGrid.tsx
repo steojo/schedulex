@@ -89,7 +89,9 @@ export default function CalendarGrid({
                     onClick={() => setSelected(post)}
                     title={post.caption}
                     className={`block w-full truncate rounded px-1.5 py-1 text-left text-xs transition-colors ${
-                      STATUS_STYLES[post.status]
+                      post.failed
+                        ? "bg-danger/15 text-danger hover:bg-danger/25"
+                        : STATUS_STYLES[post.status]
                     }`}
                   >
                     <span className="tabular-nums opacity-70">
@@ -98,6 +100,7 @@ export default function CalendarGrid({
                         minute: "2-digit",
                       })}
                     </span>{" "}
+                    {post.failed && <span title="Failed to publish">⚠ </span>}
                     {post.communityId && <span title="Community post">◆ </span>}
                     {post.mediaUrls.length > 0 && <span title="Has media">▣ </span>}
                     {post.caption}
@@ -113,6 +116,7 @@ export default function CalendarGrid({
         <Legend className="bg-accent" label="Scheduled" />
         <Legend className="bg-pending" label="Processing" />
         <Legend className="bg-success" label="Published" />
+        <Legend className="bg-danger" label="Failed" />
         <Legend className="bg-muted" label="Draft" />
         <span className="ml-auto">◆ community · ▣ media</span>
       </div>
