@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import MediaPicker from "./MediaPicker";
 import { MAX_CAPTION, parseTweetId } from "@/lib/validate";
@@ -16,6 +16,38 @@ export type PostFormValues = {
 };
 
 /**
+ * Closing the dialog unmounts this form, so without somewhere to put the
+ * in-progress values a stray backdrop click throws the post away. localStorage
+ * is the right store: it's per-browser state about an unsent post, not data
+ * PFM should hear about until submit.
+ */
+function readDraft(key: string | undefined): PostFormValues | null {
+  if (!key || typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const draft = JSON.parse(raw) as Partial<PostFormValues>;
+    return {
+      caption: typeof draft.caption === "string" ? draft.caption : "",
+      scheduledAt: typeof draft.scheduledAt === "string" ? draft.scheduledAt : "",
+      communityId: typeof draft.communityId === "string" ? draft.communityId : null,
+      media: Array.isArray(draft.media) ? draft.media.filter((m) => typeof m === "string") : [],
+      quoteTweetId: typeof draft.quoteTweetId === "string" ? draft.quoteTweetId : null,
+    };
+  } catch {
+    // Corrupt or unreadable (private mode, quota): fall back to `initial`.
+    return null;
+  }
+}
+
+function clearDraft(key: string | undefined) {
+  if (!key || typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(key);
+  } catch {}
+}
+
+/**
  * Shared by compose and edit. `showCommunity` is off when editing: moving a
  * published-to community after the fact is confusing, so it's fixed at creation
  * — but the value is still carried through, since PFM's update replaces the
@@ -26,6 +58,7 @@ export default function PostForm({
   submitLabel,
   showCommunity = true,
   disabled = false,
+  draftKey,
   onSubmit,
   footer,
 }: {
@@ -33,27 +66,58 @@ export default function PostForm({
   submitLabel: string;
   showCommunity?: boolean;
   disabled?: boolean;
+  /** localStorage key to autosave to, so closing the dialog doesn't lose typing. */
+  draftKey?: string;
   onSubmit: (values: PostFormValues) => Promise<string | null>;
   footer?: React.ReactNode;
 }) {
-  const [caption, setCaption] = useState(initial.caption);
-  const [scheduledAt, setScheduledAt] = useState(initial.scheduledAt);
+  // Read once, at mount, before any state is derived — a restored draft stands
+  // in for `initial` wholesale rather than merging field by field.
+  const [restored] = useState(() => readDraft(draftKey));
+  const start = restored ?? initial;
+
+  const [caption, setCaption] = useState(start.caption);
+  const [scheduledAt, setScheduledAt] = useState(start.scheduledAt);
   const [community, setCommunity] = useState<"none" | "bip" | "custom">(
-    initial.communityId === null
+    start.communityId === null
       ? "none"
-      : initial.communityId === BUILD_IN_PUBLIC
+      : start.communityId === BUILD_IN_PUBLIC
         ? "bip"
         : "custom",
   );
   const [customId, setCustomId] = useState(
-    initial.communityId && initial.communityId !== BUILD_IN_PUBLIC
-      ? initial.communityId
-      : "",
+    start.communityId && start.communityId !== BUILD_IN_PUBLIC ? start.communityId : "",
   );
-  const [media, setMedia] = useState<string[]>(initial.media);
-  const [quote, setQuote] = useState(initial.quoteTweetId ?? "");
+  const [media, setMedia] = useState<string[]>(start.media);
+  const [quote, setQuote] = useState(start.quoteTweetId ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showRestored, setShowRestored] = useState(restored !== null);
+
+  const communityId =
+    community === "none" ? null : community === "bip" ? BUILD_IN_PUBLIC : customId.trim();
+
+  // Saves on every keystroke rather than on unmount: the tab can be closed or
+  // reloaded without warning, and an unmount cleanup wouldn't fire for that.
+  useEffect(() => {
+    if (!draftKey) return;
+    const empty =
+      caption.trim() === "" && media.length === 0 && quote.trim() === "" && communityId === null;
+    try {
+      if (empty) window.localStorage.removeItem(draftKey);
+      else
+        window.localStorage.setItem(
+          draftKey,
+          JSON.stringify({
+            caption,
+            scheduledAt,
+            communityId,
+            media,
+            quoteTweetId: quote.trim() || null,
+          } satisfies PostFormValues),
+        );
+    } catch {}
+  }, [draftKey, caption, scheduledAt, communityId, media, quote]);
 
   const over = caption.length > MAX_CAPTION;
   const quoteId = parseTweetId(quote);
@@ -67,9 +131,6 @@ export default function PostForm({
     setBusy(true);
     setError(null);
 
-    const communityId =
-      community === "none" ? null : community === "bip" ? BUILD_IN_PUBLIC : customId.trim();
-
     const message = await onSubmit({
       caption: caption.trim(),
       scheduledAt,
@@ -80,11 +141,45 @@ export default function PostForm({
     if (message) {
       setError(message);
       setBusy(false);
+      return;
     }
+    // Only on success — a failed submit leaves the draft in place to retry.
+    clearDraft(draftKey);
+  }
+
+  function discardDraft() {
+    setCaption(initial.caption);
+    setScheduledAt(initial.scheduledAt);
+    setCommunity(
+      initial.communityId === null
+        ? "none"
+        : initial.communityId === BUILD_IN_PUBLIC
+          ? "bip"
+          : "custom",
+    );
+    setCustomId(
+      initial.communityId && initial.communityId !== BUILD_IN_PUBLIC ? initial.communityId : "",
+    );
+    setMedia(initial.media);
+    setQuote(initial.quoteTweetId ?? "");
+    setShowRestored(false);
   }
 
   return (
     <form onSubmit={submit}>
+      {showRestored && (
+        <div className="mb-3 flex items-center justify-between gap-2 rounded-md border border-edge px-3 py-1.5 text-xs text-muted">
+          <span>Restored your unsent draft.</span>
+          <button
+            type="button"
+            onClick={discardDraft}
+            className="font-semibold text-fg transition-colors hover:text-danger"
+          >
+            Discard
+          </button>
+        </div>
+      )}
+
       <textarea
         value={caption}
         onChange={(e) => setCaption(e.target.value)}

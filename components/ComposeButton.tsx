@@ -53,6 +53,7 @@ export default function ComposeButton({ presetDate }: { presetDate?: string }) {
               media: [],
               quoteTweetId: null,
             }}
+            draftKey="schedulex:draft:new"
             submitLabel="Schedule"
             onSubmit={create}
           />
