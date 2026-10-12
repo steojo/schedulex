@@ -42,3 +42,8 @@ yarn-error.log*
 next-env.d.ts
 
 NOTES.txt
+
+# Personal tweet-writing setup — not part of the open-source project.
+# Voice guide, product facts, insight bank, drafts, and the /tweets skill.
+content/
+.claude/
