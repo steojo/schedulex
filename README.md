@@ -27,7 +27,7 @@ an update, cancelling is a delete.
 Requires a [Post for Me](https://www.postforme.dev) account with an X account connected.
 
 ```bash
-git clone https://github.com/<you>/schedulex
+git clone https://github.com/steojo/schedulex.git
 cd schedulex
 npm install
 cp .env.example .env.local
@@ -68,4 +68,4 @@ Next.js 16 · TypeScript · Tailwind CSS · Post for Me
 
 ## License
 
-MIT
+Licensed under the [MIT License](LICENSE).
